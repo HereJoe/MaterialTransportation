@@ -1,8 +1,6 @@
 package com.adl.path.service;
 
 import com.adl.path.bean.*;
-import com.adl.path.dao.ConnDao;
-import com.adl.path.dao.DeviceDao;
 import com.adl.path.dao.PathDao;
 import org.springframework.stereotype.Service;
 
@@ -17,16 +15,16 @@ import static com.adl.path.enums.DeviceType.Destination;
 public class PathServiceImpl implements PathService {
     private Random random = new Random();
     @Resource
-    private PathDao pathDao;
-    @Resource
-    private DeviceDao deviceDao;
-    @Resource
-    private ConnDao connDao;
-    @Resource
     private DataSource dataSource;
+    @Resource
+    private DeviceService deviceService;
+    @Resource
+    private ConnService connService;
+    @Resource
+    private PathDao pathDao;
 
     @Override
-    public List findShortestCombine2(String sourceName, String targetNames, int maxCombine, boolean saveDB){
+    public List findShortestCombine2(String sourceName, String targetNames, int maxCombine){
         // get whole connections and build connect map
         Map<Integer, Device> deviceIdMap = new HashMap<>();
         Map<String, Device> deviceNameMap = new HashMap<>();
@@ -39,7 +37,6 @@ public class PathServiceImpl implements PathService {
         if (targetPathsMap.isEmpty()){
             return null;
         }
-
         // use sub-path to reduce the tree (Node, SubPath)
         //buildSubPathNode(root);
         // dfs find all paths for each target, get target-paths map
@@ -51,9 +48,7 @@ public class PathServiceImpl implements PathService {
         combines=formatPaths(combines);
         // build combineVO for front-end
         List<CombineDto> combineVos = buildCombineVos(combines);
-        if (saveDB){
-            pathDao.saveCombines(combineVos);
-        }
+        pathDao.saveCombines(combineVos);
         return combineVos;
     }
 
@@ -101,6 +96,8 @@ public class PathServiceImpl implements PathService {
                     path.setFormatPathStr(formatPathSB.substring(2));
                     if (sharedSB.length()>0){
                         path.setSharedStr(sharedSB.substring(1));
+                    }else {
+                        path.setSharedStr("");
                     }
 
                 }
@@ -109,6 +106,27 @@ public class PathServiceImpl implements PathService {
         return combines;
     }
 
+    private List<PathVo> buildPathVos(List<Path2> paths) {
+        List<PathVo> saveData = new ArrayList<>();
+        int batchId = 100000 + random.nextInt(900000);
+        for (Path2 path : paths) {
+            PathVo pathVo = new PathVo();
+            pathVo.setBatchId(batchId);
+            String[] nodeNames = path.getNodeNames();
+            pathVo.setSource(path.getNodeIds()[0]);
+            pathVo.setTarget(path.getNodeIds()[nodeNames.length-1]);
+            StringBuilder sb = new StringBuilder();
+            for (String nodeName : nodeNames) {
+                sb.append("->").append(nodeName);
+            }
+            pathVo.setPath(sb.substring(2));
+            pathVo.setTotalNode(nodeNames.length);
+            pathVo.setTotalCost(path.getPathCost());
+            pathVo.setCreatedBy("findShortestPaths");
+            saveData.add(pathVo);
+        }
+        return saveData;
+    }
     private List<CombineDto> buildCombineVos(List<Combine2> combines) {
         calcSharedCost(combines);
         List<CombineDto> saveData = new ArrayList<>();
@@ -125,7 +143,7 @@ public class PathServiceImpl implements PathService {
                 combineVo.setPath(path.getPathStr());
                 combineVo.setFormattedPath(path.getFormatPathStr());
                 combineVo.setSharedPath(path.getSharedStr());
-                combineVo.setCreatedBy("findShortestCombine");
+                combineVo.setCreatedBy("findShortestCombines");
                 saveData.add(combineVo);
             }
             combineNumber++;
@@ -243,7 +261,10 @@ public class PathServiceImpl implements PathService {
         combines.forEach(n->queue.offer(n));
         List<Combine2> list = new ArrayList<>(maxCombine);
         for (int i = 0; i < maxCombine; i++) {
-            list.add(queue.poll());
+            Combine2 poll = queue.poll();
+            if (poll!=null){
+                list.add(poll);
+            }
         }
         return list;
     }
@@ -308,47 +329,6 @@ public class PathServiceImpl implements PathService {
             }
         }
         return all;
-    }
-
-
-    private Map<Integer, List<Path>> buildAllPathsByDFS(Node root) {
-        HashMap<Integer, List<List<Node>>> paths = new HashMap<>();
-        Stack<List<Node>> stack = new Stack<>();
-        List<Node> path = new ArrayList<>();
-        path.add(root);
-        stack.push(path);
-        while (true){
-            List<Node> list = stack.pop();
-            if (list!=null){
-                int size = list.size();
-                for (int i = 0; i < size; i++) {
-                    Node node = list.get(i);
-                }
-                for (Node node : list) {
-                    ArrayList<Node> newList = new ArrayList<>(list);
-                    newList.add(node);
-                }
-            }
-
-        }
-    }
-
-    private Node buildSubPathNode(Node cur) {
-        int childCount = cur.getChildCount();
-        switch (childCount){
-            case 0: return cur;
-            case 1: return cur.getChildren().get(0);
-            default:
-                List<Node> children = cur.getChildren();
-                for (int i = 0; i < childCount; i++) {
-                    Node node = children.get(i);
-                    Node node2 = buildSubPathNode(node);
-                    if (node!=node2){
-                        children.set(i,new SubPath(node,node2));
-                    }
-                }
-                return cur;
-        }
     }
 
     private Node buildTree(Map<Integer,List<Node>> targetPathsMap, Device device, Map<Integer, List<ConnectionExt>> connMap, Map<Integer, Device> deviceIdMap, Set targetSet) {
@@ -427,7 +407,7 @@ public class PathServiceImpl implements PathService {
 
     private Device buildDeviceAndConnMaps(String sourceName, String targetNames, Map<Integer, Device> deviceIdMap, Map<String, Device> deviceNameMap, Map<Integer, List<ConnectionExt>> connMap, Set<Integer> targetIdSet) {
         // build device map
-        List<Device> devices = deviceDao.listAvailableDevices();
+        List<Device> devices = deviceService.listAvailableDevices();
         for (Device d : devices) {
             deviceIdMap.put(d.getId(),d);
             deviceNameMap.put(d.getName(),d);
@@ -446,7 +426,7 @@ public class PathServiceImpl implements PathService {
             throw new RuntimeException("targets don't exist or are unavailable");
         }
         // build conn map
-        List<ConnectionExt> conns = connDao.listAvailableConn();
+        List<ConnectionExt> conns = connService.listAvailableConn();
         for (ConnectionExt conn : conns) {
             List<ConnectionExt> list = connMap.get(conn.getSourceDevice());
             if (list==null){
@@ -458,19 +438,52 @@ public class PathServiceImpl implements PathService {
         return source;
     }
 
-    public List findShortestCombine(String sourceName, String targetNames, int maxCombine, boolean saveDB, boolean useLog){
-        Map<Integer, List<Path>> targetListMap = getTargetListMap(sourceName,targetNames,maxCombine,useLog);
-        if (targetListMap.isEmpty()){
+
+    @Override
+    public List findShortestPaths(String sourceName, String targetNames, int maxPath) {
+        // get whole connections and build connect map
+        Map<Integer, Device> deviceIdMap = new HashMap<>();
+        Map<String, Device> deviceNameMap = new HashMap<>();
+        Map<Integer, List<ConnectionExt>> connMap = new HashMap<>();
+        Set targetIdSet = new HashSet();
+        Device source = buildDeviceAndConnMaps(sourceName,targetNames,deviceIdMap,deviceNameMap,connMap,targetIdSet);
+        // build whole tree from source (cut off cycle and the paths not leading to targets)
+        Map<Integer,List<Node>> targetPathsMap = new HashMap<>();
+        buildTree(targetPathsMap,source,connMap,deviceIdMap,targetIdSet);
+        if (targetPathsMap.isEmpty()){
             return null;
         }
-        List<Combine> combines = buildCombines(targetListMap);
-        combines = getFirstNCombine(combines,maxCombine);
-        fillPathStr4Combine(combines);
-        List<CombineDto> combineDtos = buildCombineDtos(combines);
-        if (saveDB){
-            pathDao.saveCombines(combineDtos);
-        }
-        return combineDtos;
+        // dfs find all paths for each target, get target-paths map
+        Map<Integer,List<Path2>> targetPaths = transferTargetNodes2Paths(targetPathsMap);
+        // choose the cheapest n path for each target
+        List<Path2> paths = chooseCheapestNPath(targetPaths,maxPath);
+        // build pathvo for front-end
+        List<PathVo> pathVos = buildPathVos(paths);
+        pathDao.savePaths(pathVos);
+        return pathVos;
+    }
+
+    private List<Path2> chooseCheapestNPath(Map<Integer, List<Path2>> targetPathsMap, int maxPath) {
+        List<Path2> list = new ArrayList<>(maxPath);
+        targetPathsMap.forEach((k,v)->{
+            // sort and filter combines
+            PriorityQueue<Path2> queue = new PriorityQueue<>((c1,c2)->{
+                int t1 = c1.getPathCost();
+                int t2 = c2.getPathCost();
+                return t1==t2?0:(t1>t2)?1:-1;
+            });
+            for (Path2 path2 : v) {
+                queue.offer(path2);
+            }
+            for (int i = 0; i < maxPath; i++) {
+                Path2 poll = queue.poll();
+                if (poll!=null){
+                    list.add(poll);
+                }
+            }
+
+        });
+        return list;
     }
 
     private void fillPathStr4Combine(List<Combine> combines) {
@@ -531,7 +544,10 @@ public class PathServiceImpl implements PathService {
         List<Combine> rst = new ArrayList<>();
         int count=0;
         while (!queue.isEmpty()&&count<maxCombine){
-            rst.add(queue.poll());
+            Combine poll = queue.poll();
+            if (poll!=null){
+                rst.add(poll);
+            }
             count++;
         }
         return rst;
@@ -583,7 +599,7 @@ public class PathServiceImpl implements PathService {
     private Map<Integer, List<Path>> getTargetListMap(String sourceName, String targetNames, int maxCombine, boolean useLog){
         Map<Integer, List<Path>> targetListMap = new HashMap<>();
         try (java.sql.Connection conn = dataSource.getConnection()) {
-            CallableStatement cs = conn.prepareCall("{call findShortestCombines(?, ?, ?, ?, ?)}");
+            CallableStatement cs = conn.prepareCall("{call findShortestPaths(?, ?, ?, ?, ?)}");
             cs.setString(1, sourceName);
             cs.setString(2, targetNames);
             cs.setInt(3, maxCombine);
@@ -622,6 +638,42 @@ public class PathServiceImpl implements PathService {
             throw new RuntimeException(e);
         }
         return targetListMap;
+    }
+
+    @Override
+    public List<PathVo> shortestPathAlgorithmBasedOnDB(String sourceName, String targetNames, int maxCombine, boolean useLog){
+        List<PathVo> paths = new ArrayList<>();
+        try (java.sql.Connection conn = dataSource.getConnection()) {
+            CallableStatement cs = conn.prepareCall("{call findShortestPaths(?, ?, ?, ?, ?)}");
+            cs.setString(1, sourceName);
+            cs.setString(2, targetNames);
+            cs.setInt(3, maxCombine);
+            cs.setBoolean(4, useLog);
+            cs.setBoolean(5, true);
+            boolean hasResults = cs.execute();
+            for (int i = 0; i < 3; i++) {
+                hasResults=cs.getMoreResults();
+            }
+            if (hasResults){
+                // get paths
+                ResultSet rs = cs.getResultSet();
+                while (rs.next()) {
+                    PathVo pathVo = new PathVo();
+                    pathVo.setBatchId(rs.getInt("batchId"));
+                    pathVo.setSource(rs.getInt("source"));
+                    pathVo.setTarget(rs.getInt("target"));
+                    pathVo.setPath(rs.getString("path"));
+                    pathVo.setTotalNode(rs.getInt("total_node"));
+                    pathVo.setTotalCost(rs.getInt("total_cost"));
+                    paths.add(pathVo);
+                }
+            }
+            cs.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+        return paths;
     }
 
 }
