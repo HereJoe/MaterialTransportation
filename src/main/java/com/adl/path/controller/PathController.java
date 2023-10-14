@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.validation.constraints.Min;
+import javax.validation.constraints.NotBlank;
 import java.util.List;
 
 @RequestMapping("/path")
@@ -45,7 +46,7 @@ public class PathController {
 
     @CrossOrigin(origins = "*")
     @GetMapping("/findShortestPaths/{sourceName}/{targetNames}/{quantity}/{dbAlgorithm}/{useLog}")
-    public Resp findShortestPaths(@PathVariable String sourceName,@PathVariable String targetNames,@PathVariable int quantity,@PathVariable boolean dbAlgorithm,@PathVariable boolean useLog){
+    public Resp findShortestPaths(@PathVariable @NotBlank String sourceName, @PathVariable @NotBlank String targetNames, @PathVariable @Min(1) int quantity, @PathVariable boolean dbAlgorithm, @PathVariable boolean useLog){
         List paths;
         try {
             if (dbAlgorithm){

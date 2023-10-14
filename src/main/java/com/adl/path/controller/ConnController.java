@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.annotation.Resource;
 
 @RequestMapping("/conn")
-@RestController
+//@RestController
 public class ConnController {
 
     @Resource
