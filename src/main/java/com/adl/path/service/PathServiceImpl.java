@@ -10,6 +10,7 @@ import java.sql.*;
 import java.util.*;
 
 import static com.adl.path.enums.DeviceType.Destination;
+import static com.adl.path.enums.DeviceType.Source;
 
 @Service
 public class PathServiceImpl implements PathService {
@@ -24,7 +25,7 @@ public class PathServiceImpl implements PathService {
     private PathDao pathDao;
 
     @Override
-    public List findShortestCombine2(String sourceName, String targetNames, int maxCombine){
+    public List<List<CombineVo>> findShortestCombine(String sourceName, String targetNames, int quantity){
         // get whole connections and build connect map
         Map<Integer, Device> deviceIdMap = new HashMap<>();
         Map<String, Device> deviceNameMap = new HashMap<>();
@@ -42,13 +43,13 @@ public class PathServiceImpl implements PathService {
         // dfs find all paths for each target, get target-paths map
         Map<Integer,List<Path2>> targetPaths = transferTargetNodes2Paths(targetPathsMap);
         // build combines and get the best n combines
-        List<Combine2> combines = buildCombinesByPaths(targetPaths,maxCombine);
+        List<Combine2> combines = buildCombinesByPaths(targetPaths, quantity);
         // format path, and subpath for each combine
         combines = calcSharedCost(combines);
         combines=formatPaths(combines);
         // build combineVO for front-end
-        List<CombineDto> combineVos = buildCombineVos(combines);
-        pathDao.saveCombines(combineVos);
+        List<List<CombineVo>> combineVos = buildCombineVosAndSaveDB(combines);
+
         return combineVos;
     }
 
@@ -67,31 +68,33 @@ public class PathServiceImpl implements PathService {
                     for (int i = 0; i < nodeNames.length; i++) {
                         pathSB.append("->").append(nodeNames[i]);
                         boolean match = sharedNodeBit.get(i);
-                        formatPathSB.append("->");
                         if (match&&!onProcess) {
-                            formatPathSB.append("<B>");
                             onProcess=true;
+                            formatPathSB.append("-><B><I>").append(nodeNames[i]);
                             if (tmpSharedSB.length()>0){
                                 sharedSB.append(',').append(tmpSharedSB.substring(2));
+                                tmpSharedSB = new StringBuilder();
                             }
-                            tmpSharedSB = new StringBuilder();
-                        }
-                        if (!match&&onProcess){
-                            formatPathSB.append("</B>");
+                        }else if (!match&&onProcess){
                             onProcess=false;
+                            formatPathSB.append("</I></B>->").append(nodeNames[i]);
+                        }else {
+                            formatPathSB.append("->").append(nodeNames[i]);
                         }
-                        formatPathSB.append(nodeNames[i]);
                         // shared path
                         if (match){
                             tmpSharedSB.append("->").append(nodeNames[i]);
                         }
                     }
+
+                    // check if on process at the end point
                     if (onProcess){
                         formatPathSB.append("</B>");
+                        if (tmpSharedSB.length()>0){
+                            sharedSB.append(',').append(tmpSharedSB.substring(2));
+                        }
                     }
-                    if (tmpSharedSB.length()>0){
-                        sharedSB.append(',').append(tmpSharedSB.substring(2));
-                    }
+                    // set str
                     path.setPathStr(pathSB.substring(2));
                     path.setFormatPathStr(formatPathSB.substring(2));
                     if (sharedSB.length()>0){
@@ -106,33 +109,44 @@ public class PathServiceImpl implements PathService {
         return combines;
     }
 
-    private List<PathVo> buildPathVos(List<Path2> paths) {
-        List<PathVo> saveData = new ArrayList<>();
+    private List<List<PathVo>> buildPathVosAndSaveDB(List<List<Path2>> pathGroups) {
         int batchId = 100000 + random.nextInt(900000);
-        for (Path2 path : paths) {
-            PathVo pathVo = new PathVo();
-            pathVo.setBatchId(batchId);
-            String[] nodeNames = path.getNodeNames();
-            pathVo.setSource(path.getNodeIds()[0]);
-            pathVo.setTarget(path.getNodeIds()[nodeNames.length-1]);
-            StringBuilder sb = new StringBuilder();
-            for (String nodeName : nodeNames) {
-                sb.append("->").append(nodeName);
+        List<PathDto> saveData = new ArrayList<>();
+        List<List<PathVo>> pathList = new ArrayList<>();
+        for (List<Path2> pathGroup : pathGroups) {
+            List<PathVo> vos = new ArrayList<>();
+            for (Path2 path : pathGroup) {
+                PathVo pathVo = new PathVo();
+                pathVo.setBatchId(batchId);
+                String[] nodeNames = path.getNodeNames();
+                pathVo.setSource(path.getNodeNames()[0]);
+                pathVo.setTarget(path.getNodeNames()[nodeNames.length-1]);
+                StringBuilder sb = new StringBuilder();
+                for (String nodeName : nodeNames) {
+                    sb.append("->").append(nodeName);
+                }
+                pathVo.setPath(sb.substring(2));
+                pathVo.setTotalNode(nodeNames.length);
+                pathVo.setTotalCost(path.getPathCost());
+                pathVo.setCreatedBy("findShortestPaths");
+                saveData.add(pathVo);
+                vos.add(pathVo);
             }
-            pathVo.setPath(sb.substring(2));
-            pathVo.setTotalNode(nodeNames.length);
-            pathVo.setTotalCost(path.getPathCost());
-            pathVo.setCreatedBy("findShortestPaths");
-            saveData.add(pathVo);
+            pathList.add(vos);
         }
-        return saveData;
+        pathDao.savePaths(saveData);
+        return pathList;
     }
-    private List<CombineDto> buildCombineVos(List<Combine2> combines) {
+    private List<List<CombineVo>> buildCombineVosAndSaveDB(List<Combine2> combines) {
+        // calc shared cost
         calcSharedCost(combines);
+        // build data
         List<CombineDto> saveData = new ArrayList<>();
+        List<List<CombineVo>> combineList = new ArrayList<>();
         int batchId = 100000 + random.nextInt(900000);
         int combineNumber = 1;
         for (Combine2 combine : combines) {
+            List<CombineVo> vos = new ArrayList<>();
             for (Path2 path : combine.getPaths()) {
                 CombineVo combineVo = new CombineVo();
                 combineVo.setBatchId(batchId);
@@ -145,48 +159,42 @@ public class PathServiceImpl implements PathService {
                 combineVo.setSharedPath(path.getSharedStr());
                 combineVo.setCreatedBy("findShortestCombines");
                 saveData.add(combineVo);
+                vos.add(combineVo);
             }
+            combineList.add(vos);
             combineNumber++;
         }
-        return saveData;
+        pathDao.saveCombines(saveData);
+        return combineList;
     }
 
     private List<Combine2> calcSharedCost(List<Combine2> combines) {
-        Set<String> comparedSet = new HashSet<>();
         for (Combine2 combine : combines) {
-            // each combination
             LinkedList<Path2> paths = combine.getPaths();
+            // initialize
+            for (int i = 0; i < paths.size(); i++) {
+                paths.set(i,paths.get(i).clone());
+            }
+            // compare each pair paths
             for (int i = 0; i < paths.size(); i++) {
                 // each path
                 Path2 path = paths.get(i);
                 for (int j = i + 1; j < paths.size(); j++) {
-                    // compare by pair
-                    Path2 path2 = paths.get(j);
-                    int l, r;
-                    if (path.getId() < path2.getId()) {
-                        l = path.getId();
-                        r = path2.getId();
-                    } else {
-                        l = path2.getId();
-                        r = path.getId();
-                    }
-                    String key = String.format("%d-%d", l,r);
-                    if (!comparedSet.contains(key)) {
-                        comparePathsPair(path, path2);
-                        comparedSet.add(key);
-                    }
+                    comparePathsPair(path, paths.get(j));
                 }
-                // calc shared cost
+            }
+            // calc shared cost
+            for (Path2 path : paths) {
                 int sharedCost=0;
                 int[] nodeCosts = path.getNodeCosts();
                 int[] edgeCosts = path.getEdgeCosts();
                 BitSet sharedNodeBit = path.getSharedNodeBit();
                 for (int j = sharedNodeBit.nextSetBit(0); j >= 0; j = sharedNodeBit.nextSetBit(j + 1)) {
-                    sharedCost += nodeCosts[i];
+                    sharedCost += nodeCosts[j];
                 }
                 BitSet sharedEdgeBit = path.getSharedEdgeBit();
                 for (int j = sharedEdgeBit.nextSetBit(0); j >= 0; j = sharedEdgeBit.nextSetBit(j + 1)) {
-                    sharedCost += edgeCosts[i];
+                    sharedCost += edgeCosts[j];
                 }
                 path.setSharedCost(sharedCost);
             }
@@ -300,16 +308,32 @@ public class PathServiceImpl implements PathService {
     private static void comparePathsPair(Path2 path1, Path2 path2) {
         int[] nodeIds1=path1.getNodeIds();
         int[] nodeIds2=path2.getNodeIds();
-        BitSet sharedBit1 = path1.getSharedNodeBit();
-        BitSet sharedBit2 = path2.getSharedNodeBit();
+        BitSet sharedBitN1 = path1.getSharedNodeBit();
+        BitSet sharedBitN2 = path2.getSharedNodeBit();
+        BitSet sharedBitE1 = path1.getSharedEdgeBit();
+        BitSet sharedBitE2 = path2.getSharedEdgeBit();
         int compInd=0;
-        for (int i = 0; i < nodeIds1.length; i++) {
+        boolean onProcess=false;
+        f:for (int i = 0; i < nodeIds1.length; i++) {
             for (int j = compInd; j < nodeIds2.length; j++) {
                 if (nodeIds1[i] == nodeIds2[j]) {
-                    sharedBit1.set(i);
-                    sharedBit2.set(j);
-                    compInd = j;
+                    // shared nodes
+                    sharedBitN1.set(i);
+                    sharedBitN2.set(j);
+                    // shared edges
+                    if (onProcess){
+                        sharedBitE1.set(i);
+                        sharedBitE2.set(j);
+                    }else {
+                        onProcess=true;
+                    }
+                    compInd = j+1;
+                    continue f;
+
+                }else {
+                    onProcess=false;
                 }
+
             }
         }
     }
@@ -415,15 +439,21 @@ public class PathServiceImpl implements PathService {
         // check source
         Device source = deviceNameMap.get(sourceName.trim());
         if (source==null){
-            throw new RuntimeException("device doesn't exist or is unavailable");
+            throw new RuntimeException(String.format("source %s doesn't exist or is unavailable",sourceName));
+        }
+        if (!Source.name().equalsIgnoreCase(source.getType())){
+            throw new RuntimeException(String.format("source %s is not a source Device",sourceName));
         }
         // check targets
         for (String s : targetNames.split(",")) {
             Device d = deviceNameMap.get(s.trim());
-            if (d!=null) targetIdSet.add(d.getId());
-        }
-        if (targetIdSet.isEmpty()){
-            throw new RuntimeException("targets don't exist or are unavailable");
+            if (d==null){
+                throw new RuntimeException(String.format("destination %s doesn't exist or is unavailable",s));
+            }
+            if (!Destination.name().equalsIgnoreCase(d.getType())){
+                throw new RuntimeException(String.format("destination %s is not a destination Device",s));
+            }
+            targetIdSet.add(d.getId());
         }
         // build conn map
         List<ConnectionExt> conns = connService.listAvailableConn();
@@ -440,7 +470,7 @@ public class PathServiceImpl implements PathService {
 
 
     @Override
-    public List findShortestPaths(String sourceName, String targetNames, int maxPath) {
+    public List<List<PathVo>> findShortestPaths(String sourceName, String targetNames, int quantity) {
         // get whole connections and build connect map
         Map<Integer, Device> deviceIdMap = new HashMap<>();
         Map<String, Device> deviceNameMap = new HashMap<>();
@@ -456,15 +486,16 @@ public class PathServiceImpl implements PathService {
         // dfs find all paths for each target, get target-paths map
         Map<Integer,List<Path2>> targetPaths = transferTargetNodes2Paths(targetPathsMap);
         // choose the cheapest n path for each target
-        List<Path2> paths = chooseCheapestNPath(targetPaths,maxPath);
-        // build pathvo for front-end
-        List<PathVo> pathVos = buildPathVos(paths);
-        pathDao.savePaths(pathVos);
+        List<List<Path2>> pathGroups = chooseCheapestNPath(targetPaths, quantity);
+        // build pathvo for front-end, save path
+        List<List<PathVo>> pathVos = buildPathVosAndSaveDB(pathGroups);
+
         return pathVos;
     }
 
-    private List<Path2> chooseCheapestNPath(Map<Integer, List<Path2>> targetPathsMap, int maxPath) {
-        List<Path2> list = new ArrayList<>(maxPath);
+    private List<List<Path2>> chooseCheapestNPath(Map<Integer, List<Path2>> targetPathsMap, int maxPath) {
+
+        List<List<Path2>> pathGroups = new ArrayList<>();
         targetPathsMap.forEach((k,v)->{
             // sort and filter combines
             PriorityQueue<Path2> queue = new PriorityQueue<>((c1,c2)->{
@@ -475,15 +506,16 @@ public class PathServiceImpl implements PathService {
             for (Path2 path2 : v) {
                 queue.offer(path2);
             }
+            List<Path2> pathGroup = new ArrayList<>();
             for (int i = 0; i < maxPath; i++) {
                 Path2 poll = queue.poll();
                 if (poll!=null){
-                    list.add(poll);
+                    pathGroup.add(poll);
                 }
             }
-
+            pathGroups.add(pathGroup);
         });
-        return list;
+        return pathGroups;
     }
 
     private void fillPathStr4Combine(List<Combine> combines) {
@@ -641,30 +673,29 @@ public class PathServiceImpl implements PathService {
     }
 
     @Override
-    public List<PathVo> shortestPathAlgorithmBasedOnDB(String sourceName, String targetNames, int maxCombine, boolean useLog){
+    public List<PathVo> shortestPathAlgorithmBasedOnDB(String sourceName, String targetNames, int quantity, boolean useLog){
+        return pathDao.findShortestPaths(sourceName, targetNames, quantity, useLog);
+    }
+    public List<PathVo> shortestPathAlgorithmBasedOnDB2(String sourceName, String targetNames, int quantity, boolean useLog){
         List<PathVo> paths = new ArrayList<>();
         try (java.sql.Connection conn = dataSource.getConnection()) {
             CallableStatement cs = conn.prepareCall("{call findShortestPaths(?, ?, ?, ?, ?)}");
             cs.setString(1, sourceName);
             cs.setString(2, targetNames);
-            cs.setInt(3, maxCombine);
+            cs.setInt(3, quantity);
             cs.setBoolean(4, useLog);
             cs.setBoolean(5, true);
-            boolean hasResults = cs.execute();
-            for (int i = 0; i < 3; i++) {
-                hasResults=cs.getMoreResults();
-            }
-            if (hasResults){
+            if (cs.execute()){
                 // get paths
                 ResultSet rs = cs.getResultSet();
                 while (rs.next()) {
                     PathVo pathVo = new PathVo();
                     pathVo.setBatchId(rs.getInt("batchId"));
-                    pathVo.setSource(rs.getInt("source"));
-                    pathVo.setTarget(rs.getInt("target"));
-                    pathVo.setPath(rs.getString("path"));
-                    pathVo.setTotalNode(rs.getInt("total_node"));
-                    pathVo.setTotalCost(rs.getInt("total_cost"));
+                    pathVo.setSource(rs.getString("source"));
+                    pathVo.setTarget(rs.getString("Destination"));
+                    pathVo.setPath(rs.getString("Path"));
+                    pathVo.setTotalNode(rs.getInt("NodeCount"));
+                    pathVo.setTotalCost(rs.getInt("TotalCost"));
                     paths.add(pathVo);
                 }
             }

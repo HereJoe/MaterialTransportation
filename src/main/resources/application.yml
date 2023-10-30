@@ -4,7 +4,7 @@ server:
     context-path: /shortestPath
 spring:
   datasource:
-    url: jdbc:mysql://47.106.108.49:3306/sep_path
+    url: jdbc:mysql://47.106.108.49:3306/sep_path?serverTimezone=UTC
     username: path14
     password: sep2314#
     driver-class-name: com.mysql.cj.jdbc.Driver

@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.adl.path.dao.PathDao">
-    <resultMap id="result1" type="map"></resultMap>
-    <resultMap id="result2" type="map"></resultMap>
-    <resultMap id="result3" type="map"></resultMap>
-    <resultMap id="result4" type="map"></resultMap>
+    <resultMap id="pathVoMap" type="com.adl.path.bean.PathVo">
+        <result property="batchId" column="BatchId" jdbcType="INTEGER"/>
+        <result property="source" column="Source" jdbcType="VARCHAR"/>
+        <result property="target" column="Destination" jdbcType="VARCHAR"/>
+        <result property="totalNode" column="NodeCount" jdbcType="INTEGER"/>
+        <result property="totalCost" column="TotalCost" jdbcType="INTEGER"/>
+    </resultMap>
 
     <insert id="saveCombines" parameterType="list">
         INSERT INTO combination (batch_id, combine_number, combine_cost, path, path_cost, shared_path, shared_path_cost, created_by)
@@ -22,11 +25,7 @@
         </foreach>
     </insert>
 
-    <select statementType="CALLABLE" resultMap="result4" id="findPaths4Combination" resultSets="result1,result2,result3,result4">
-        CALL findPaths4Combination (#{sourceName},#{targetNames}, #{combineCount}, #{useLog}, 1);
-    </select>
-
-    <select statementType="CALLABLE" resultMap="result4" id="findShortestPaths" resultSets="result1,result2,result3,result4">
+    <select id="findShortestPaths" statementType="CALLABLE" resultMap="pathVoMap">
         CALL findShortestPaths (#{sourceName},#{targetNames}, #{combineCount}, #{useLog}, 1);
     </select>
 

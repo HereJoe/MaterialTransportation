@@ -5,7 +5,7 @@ import lombok.Data;
 import java.util.BitSet;
 
 @Data
-public class Path2 extends BasePath2 {
+public class Path2 extends BasePath2 implements Cloneable {
     private int batchId;
     private int id;
     private String[] nodeNames;
@@ -16,15 +16,15 @@ public class Path2 extends BasePath2 {
     private int sharedCost;
     private boolean formatted;
 
-    public Path2(int batchId, int[] nodeIds, String[] nodeNames, int pathCost, int[] nodeCosts, int[] edgeCosts) {
-        super(null,pathCost,nodeIds);
-        this.batchId = batchId;
-        this.nodeNames = nodeNames;
-        this.nodeCosts = nodeCosts;
-        this.edgeCosts = edgeCosts;
-    }
-
-    public Path2() {
-
+    @Override
+    public Path2 clone() {
+        try {
+        Path2 path = (Path2) super.clone();
+        path.setSharedNodeBit(new BitSet(sharedNodeBit.length()));
+        path.setSharedEdgeBit(new BitSet(sharedEdgeBit.length()));
+        return path;
+        } catch (CloneNotSupportedException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

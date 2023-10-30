@@ -219,9 +219,10 @@ input[type="radio"]:checked + label:before {
     margin-top: 10px;
     z-index: 1;
 }
+</style>
 
 
-    </style>
+
 </head>
 <body>
 	<header>
@@ -236,7 +237,7 @@ input[type="radio"]:checked + label:before {
 		
 		<div class="input-group">
 			<label for="targetNames">Target Names:<br/>(Comma Separated)</label>
-			<input type="text" id="targetNames" name="targetNames" placeholder="Enter Target Names" value="DEST1,DEST4">
+			<input type="text" id="targetNames" name="targetNames" placeholder="Enter Target Names" value="DEST1,DEST4,DEST5,DEST6">
 		</div>
 		<div class="input-group">
 			<div class="input-group3">
@@ -253,20 +254,7 @@ input[type="radio"]:checked + label:before {
 			</div>
 	
 		</div>
-		<!--<div class="narrow-input">
-			<div class="narrow-input1">
-				<label for="maxPath">Path:</label>
-			</div>
-			<div class="narrow-input2">
-				<input type="number" id="maxPath" name="maxPath" placeholder="Enter Max Path" value="4">
-			</div>
-			<div class="narrow-input3">
-				<label for="maxCombine" style="margin-left: 10px;">Combination:</label>
-			</div>
-			<div class="narrow-input4">
-				<input type="number" id="maxCombine" name="maxCombine" placeholder="Enter Max Combine" value="4">
-			</div>
-		</div>-->
+
 		<div class="checkbox-group">
 			<div class="checkbox-container1">
 				<input type="checkbox" id="dbAlgorithm" name="dbAlgorithm" value="false">
@@ -282,7 +270,10 @@ input[type="radio"]:checked + label:before {
 			<button type="button" onclick="fetchData()">Submit</button>
 		</div>
 	</form>
-    <div id="resultsTable">
+
+	<div id="resultsTable">
+	<div id="resultsTable2">
+    </div>
     </div>
     <script>
 window.onload = function() {
@@ -375,31 +366,33 @@ window.onload = function() {
 				resultsDiv.innerHTML = `<p style="text-align: center;">Error: ${response.msg}</p>`;
 				return;
 			}
-			const batchMsg='<div class="font1">batchId:'+data[0].batchId+'</div>';
+			const batchMsg='<div class="font1">batchId:'+data[0][0].batchId+'</div>';
 			let tableHTML = `
 				<table>
 					<thead>
 						<tr>
+							<th>Destination</th>
 							<th>#</th>
-							<th>Target</th>
-							<th>TotalCost</th>
-							<th>TotalNodes</th>
 							<th>Path</th>
+							<th>NodeCount</th>
+							<th>TotalCost</th>
 						</tr>
 					</thead>
 					<tbody>
 			`;
-			data.forEach((item, index) => {
-				tableHTML += `
-					<tr>
-						<td>${index + 1}</td>
-						<td>${item.target}</td>
-						<td>${item.totalCost}</td>
-						<td>${item.totalNode}</td>
-						<td class="text-left path-cell2">${item.path}</td>						
-					</tr>
-				`;
-			});
+				data.forEach((item, index) => {
+					item.forEach((item2, index2) => {
+						tableHTML += `
+							<tr>
+								${index2 === 0 ? `<td class="multi-row" rowspan="${item.length}">${item2.target}</td>` : ''}
+								<td>${index2 + 1}</td>
+								<td class="text-left path-cell2">${item2.path}</td>
+								<td>${item2.totalNode}</td>
+								<td>${item2.totalCost}</td>
+							</tr>
+						`;
+					});
+				});
 			tableHTML += '</tbody></table>';
 			resultsDiv.innerHTML = batchMsg+'<br/>'+tableHTML;
 		}
@@ -411,35 +404,32 @@ window.onload = function() {
 				resultsDiv.innerHTML = `<p style="text-align: center;">Error: ${response.msg}</p>`;
 				return;
 			}
-			const batchMsg='<div class="font1">batchId:'+data[0].batchId+'</div>';
+			const batchMsg='<div class="font1">batchId:'+data[0][0].batchId+'</div>';
 			let tableHTML = `
 				<table>
 					<thead>
 						<tr>
 							<th>#</th>
-							<th>Target</th>
-							<th>TotalCost</th>
-							<th>Path</th>
-							<th>PathCost</th>
-							<th>SharedPath</th>
-							<th>SharedCost</th>
+							<th>SubPath</th>
+							<th>SubPathCost</th>
+							<th>OverallCost</th>
 						</tr>
 					</thead>
 					<tbody>
 			`;
 			data.forEach((item, index) => {
-				tableHTML += `
-					<tr>
-						<td>${index + 1}</td>
-						<td>${item.combineNumber}</td>
-						<td>${item.combineCost}</td>
-						<td class="text-left path-cell">${item.formattedPath}</td>
-						<td>${item.pathCost}</td>
-						<td class="text-left path-cell">${item.sharedPath}</td>
-						<td>${item.sharedPathCost}</td>
-					</tr>
-				`;
+				item.forEach((item2, index2) => {
+					tableHTML += `
+						<tr>
+							${index2 === 0 ? `<td class="multi-row" rowspan="${item.length}">${index+1}</td>` : ''}
+							<td class="single-row text-left path-cell">${item2.formattedPath}</td>
+							<td class="single-row">${item2.pathCost}</td>
+							${index2 === 0 ? `<td class="multi-row" rowspan="${item.length}">${item2.combineCost}</td>` : ''}
+						</tr>
+					`;
+				});
 			});
+
 			tableHTML += '</tbody></table>';
 			resultsDiv.innerHTML = batchMsg+'<br/>'+tableHTML;
 		}
