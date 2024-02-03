@@ -1,11 +1,7 @@
-### Material Transportation
+### Shortest Path Algorithm for Material Transportation
 
 #### 1. Project Information
 
-> **ProjectName**
-> 
-> Shortest Path Algorithm for Material Transportation
-> 
 > **Background**
 > In the world of modern industry, a streamlined and optimized material  ransport process not only reduces operational costs but also enhances overall productivity. Hence, a robust shortest path algorithm could be required by plant managers to improve production efficiency. This project aims to develop a shortest path algorithm in SQL that will return a list of shortest paths between source and destinations through a list of devices, ultimately minimizing the time taken for material transportation.
 > 
