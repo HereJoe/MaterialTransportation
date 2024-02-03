@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import javax.sql.DataSource;
-import java.sql.*;
 import java.util.*;
 
 import static com.adl.path.enums.DeviceType.Destination;
@@ -41,9 +40,9 @@ public class PathServiceImpl implements PathService {
         // use sub-path to reduce the tree (Node, SubPath)
         //buildSubPathNode(root);
         // dfs find all paths for each target, get target-paths map
-        Map<Integer,List<Path2>> targetPaths = transferTargetNodes2Paths(targetPathsMap);
+        Map<Integer,List<Path>> targetPaths = transferTargetNodes2Paths(targetPathsMap);
         // build combines and get the best n combines
-        List<Combine2> combines = buildCombinesByPaths(targetPaths, quantity);
+        List<Combine> combines = buildCombinesByPaths(targetPaths, quantity);
         // format path, and subpath for each combine
         combines = calcSharedCost(combines);
         combines=formatPaths(combines);
@@ -53,9 +52,9 @@ public class PathServiceImpl implements PathService {
         return combineVos;
     }
 
-    private static List<Combine2> formatPaths(List<Combine2> combines) {
-        for (Combine2 combine : combines) {
-            for (Path2 path : combine.getPaths()) {
+    private static List<Combine> formatPaths(List<Combine> combines) {
+        for (Combine combine : combines) {
+            for (Path path : combine.getPaths()) {
                 if (!path.isFormatted()){
                     // reconstruct shared path, and format path
                     StringBuilder sharedSB = new StringBuilder();
@@ -109,13 +108,13 @@ public class PathServiceImpl implements PathService {
         return combines;
     }
 
-    private List<List<PathVo>> buildPathVosAndSaveDB(List<List<Path2>> pathGroups) {
+    private List<List<PathVo>> buildPathVosAndSaveDB(List<List<Path>> pathGroups) {
         int batchId = 100000 + random.nextInt(900000);
         List<PathDto> saveData = new ArrayList<>();
         List<List<PathVo>> pathList = new ArrayList<>();
-        for (List<Path2> pathGroup : pathGroups) {
+        for (List<Path> pathGroup : pathGroups) {
             List<PathVo> vos = new ArrayList<>();
-            for (Path2 path : pathGroup) {
+            for (Path path : pathGroup) {
                 PathVo pathVo = new PathVo();
                 pathVo.setBatchId(batchId);
                 String[] nodeNames = path.getNodeNames();
@@ -137,7 +136,7 @@ public class PathServiceImpl implements PathService {
         pathDao.savePaths(saveData);
         return pathList;
     }
-    private List<List<CombineVo>> buildCombineVosAndSaveDB(List<Combine2> combines) {
+    private List<List<CombineVo>> buildCombineVosAndSaveDB(List<Combine> combines) {
         // calc shared cost
         calcSharedCost(combines);
         // build data
@@ -145,9 +144,9 @@ public class PathServiceImpl implements PathService {
         List<List<CombineVo>> combineList = new ArrayList<>();
         int batchId = 100000 + random.nextInt(900000);
         int combineNumber = 1;
-        for (Combine2 combine : combines) {
+        for (Combine combine : combines) {
             List<CombineVo> vos = new ArrayList<>();
-            for (Path2 path : combine.getPaths()) {
+            for (Path path : combine.getPaths()) {
                 CombineVo combineVo = new CombineVo();
                 combineVo.setBatchId(batchId);
                 combineVo.setCombineNumber(combineNumber);
@@ -168,9 +167,9 @@ public class PathServiceImpl implements PathService {
         return combineList;
     }
 
-    private List<Combine2> calcSharedCost(List<Combine2> combines) {
-        for (Combine2 combine : combines) {
-            LinkedList<Path2> paths = combine.getPaths();
+    private List<Combine> calcSharedCost(List<Combine> combines) {
+        for (Combine combine : combines) {
+            LinkedList<Path> paths = combine.getPaths();
             // initialize
             for (int i = 0; i < paths.size(); i++) {
                 paths.set(i,paths.get(i).clone());
@@ -178,13 +177,13 @@ public class PathServiceImpl implements PathService {
             // compare each pair paths
             for (int i = 0; i < paths.size(); i++) {
                 // each path
-                Path2 path = paths.get(i);
+                Path path = paths.get(i);
                 for (int j = i + 1; j < paths.size(); j++) {
                     comparePathsPair(path, paths.get(j));
                 }
             }
             // calc shared cost
-            for (Path2 path : paths) {
+            for (Path path : paths) {
                 int sharedCost=0;
                 int[] nodeCosts = path.getNodeCosts();
                 int[] edgeCosts = path.getEdgeCosts();
@@ -202,14 +201,14 @@ public class PathServiceImpl implements PathService {
         return combines;
     }
 
-    private Map<Integer, List<Path2>> transferTargetNodes2Paths(Map<Integer, List<Node>> targetNodesMap) {
+    private Map<Integer, List<Path>> transferTargetNodes2Paths(Map<Integer, List<Node>> targetNodesMap) {
         int id=0;
-        Map<Integer, List<Path2>> pathMap = new HashMap();
+        Map<Integer, List<Path>> pathMap = new HashMap();
         for (Map.Entry<Integer, List<Node>> entry : targetNodesMap.entrySet()) {
-            List<Path2> paths = new ArrayList<>();
+            List<Path> paths = new ArrayList<>();
             for (Node node : entry.getValue()) {
                 int depth = node.getDepth();
-                Path2 path = new Path2();
+                Path path = new Path();
                 path.setId(++id);
                 path.setPathCost(node.getTotalCost());
                 String[] nodeNames = new String[depth + 1];
@@ -243,33 +242,22 @@ public class PathServiceImpl implements PathService {
         return pathMap;
     }
 
-    public static List<Combine2> buildCombinesByPaths(Map<Integer, List<Path2>> targetPaths, int maxCombine) {
-        targetPaths.forEach((k,v)->{
-            System.out.println("target:"+k);
-            for (Path2 path2 : v) {
-                System.out.print(path2.getId()+":");
-                for (String nodeName : path2.getNodeNames()) {
-                    System.out.print(nodeName+"->");
-                }
-                System.out.println();
-            }
-        });
-
+    public static List<Combine> buildCombinesByPaths(Map<Integer, List<Path>> targetPaths, int maxCombine) {
         // get combines
         List<Integer> keys = new ArrayList<>(targetPaths.keySet());
-        List<Combine2> combines = getCombinesByPathsRecursive(targetPaths, keys, 0,new Combine2());
+        List<Combine> combines = getCombinesByPathsRecursive(targetPaths, keys, 0,new Combine());
         // calculate cost for combine
         combines.forEach(n-> calcCombineCost(n));
         // sort and filter combines
-        PriorityQueue<Combine2> queue = new PriorityQueue<>((c1,c2)->{
+        PriorityQueue<Combine> queue = new PriorityQueue<>((c1, c2)->{
             int t1 = c1.getTotalCost();
             int t2 = c2.getTotalCost();
             return t1==t2?0:(t1>t2)?1:-1;
         });
         combines.forEach(n->queue.offer(n));
-        List<Combine2> list = new ArrayList<>(maxCombine);
+        List<Combine> list = new ArrayList<>(maxCombine);
         for (int i = 0; i < maxCombine; i++) {
-            Combine2 poll = queue.poll();
+            Combine poll = queue.poll();
             if (poll!=null){
                 list.add(poll);
             }
@@ -277,12 +265,12 @@ public class PathServiceImpl implements PathService {
         return list;
     }
 
-    private static void calcCombineCost(Combine2 combine) {
+    private static void calcCombineCost(Combine combine) {
         // calculate cost
         Set<Integer> nodeIdSet = new HashSet<>();
         Set<Integer> edgeIdSet = new HashSet<>();
         int totalCost=0;
-        for (Path2 path : combine.getPaths()) {
+        for (Path path : combine.getPaths()) {
             int[] nodeIds = path.getNodeIds();
             int[] edgeIds = path.getEdgeIds();
             int[] nodeCosts = path.getNodeCosts();
@@ -305,7 +293,7 @@ public class PathServiceImpl implements PathService {
      * @param path1
      * @param path2
      */
-    private static void comparePathsPair(Path2 path1, Path2 path2) {
+    private static void comparePathsPair(Path path1, Path path2) {
         int[] nodeIds1=path1.getNodeIds();
         int[] nodeIds2=path2.getNodeIds();
         BitSet sharedBitN1 = path1.getSharedNodeBit();
@@ -338,17 +326,17 @@ public class PathServiceImpl implements PathService {
         }
     }
 
-    private static List<Combine2> getCombinesByPathsRecursive(Map<Integer, List<Path2>> targetPaths, List<Integer> keys, int keyIndex, Combine2 curCombine) {
+    private static List<Combine> getCombinesByPathsRecursive(Map<Integer, List<Path>> targetPaths, List<Integer> keys, int keyIndex, Combine curCombine) {
         Integer targetId = keys.get(keyIndex);
-        List<Combine2> all = new ArrayList<>();
-        for (Path2 path : targetPaths.get(targetId)) {
-            Combine2 combine = curCombine.clone();
-            LinkedList<Path2> paths = combine.getPaths();
+        List<Combine> all = new ArrayList<>();
+        for (Path path : targetPaths.get(targetId)) {
+            Combine combine = curCombine.clone();
+            LinkedList<Path> paths = combine.getPaths();
             paths.add(path);
             if (keyIndex==keys.size()-1){
                 all.add(combine);
             }else {
-                List<Combine2> rst = getCombinesByPathsRecursive(targetPaths, keys, keyIndex + 1, combine);
+                List<Combine> rst = getCombinesByPathsRecursive(targetPaths, keys, keyIndex + 1, combine);
                 all.addAll(rst);
             }
         }
@@ -468,7 +456,6 @@ public class PathServiceImpl implements PathService {
         return source;
     }
 
-
     @Override
     public List<List<PathVo>> findShortestPaths(String sourceName, String targetNames, int quantity) {
         // get whole connections and build connect map
@@ -484,31 +471,31 @@ public class PathServiceImpl implements PathService {
             return null;
         }
         // dfs find all paths for each target, get target-paths map
-        Map<Integer,List<Path2>> targetPaths = transferTargetNodes2Paths(targetPathsMap);
+        Map<Integer,List<Path>> targetPaths = transferTargetNodes2Paths(targetPathsMap);
         // choose the cheapest n path for each target
-        List<List<Path2>> pathGroups = chooseCheapestNPath(targetPaths, quantity);
+        List<List<Path>> pathGroups = chooseCheapestNPath(targetPaths, quantity);
         // build pathvo for front-end, save path
         List<List<PathVo>> pathVos = buildPathVosAndSaveDB(pathGroups);
 
         return pathVos;
     }
 
-    private List<List<Path2>> chooseCheapestNPath(Map<Integer, List<Path2>> targetPathsMap, int maxPath) {
+    private List<List<Path>> chooseCheapestNPath(Map<Integer, List<Path>> targetPathsMap, int maxPath) {
 
-        List<List<Path2>> pathGroups = new ArrayList<>();
+        List<List<Path>> pathGroups = new ArrayList<>();
         targetPathsMap.forEach((k,v)->{
             // sort and filter combines
-            PriorityQueue<Path2> queue = new PriorityQueue<>((c1,c2)->{
+            PriorityQueue<Path> queue = new PriorityQueue<>((c1, c2)->{
                 int t1 = c1.getPathCost();
                 int t2 = c2.getPathCost();
                 return t1==t2?0:(t1>t2)?1:-1;
             });
-            for (Path2 path2 : v) {
+            for (Path path2 : v) {
                 queue.offer(path2);
             }
-            List<Path2> pathGroup = new ArrayList<>();
+            List<Path> pathGroup = new ArrayList<>();
             for (int i = 0; i < maxPath; i++) {
-                Path2 poll = queue.poll();
+                Path poll = queue.poll();
                 if (poll!=null){
                     pathGroup.add(poll);
                 }
@@ -518,193 +505,9 @@ public class PathServiceImpl implements PathService {
         return pathGroups;
     }
 
-    private void fillPathStr4Combine(List<Combine> combines) {
-        for (Combine combine : combines) {
-            for (Path path : combine.getPaths()) {
-                path.setPathStr(String.join("->",path.getNodeNames()));
-            }
-        }
-    }
-
-    private List<CombineDto> buildCombineDtos(List<Combine> combines) {
-        List<CombineDto> saveData = new ArrayList<>();
-        int combineNumber = 1;
-        for (Combine combine : combines) {
-            LinkedList<Path> paths = combine.getPaths();
-            LinkedList<Map<Path, SharedPath>> sharedSubPaths = combine.getSharedSubPaths();
-            for (int i = 0; i < paths.size(); i++) {
-                CombineVo combineVo = new CombineVo();
-                combineVo.setCombineNumber(combineNumber);
-                combineVo.setBatchId(combine.getBatchId());
-                combineVo.setCombineCost(combine.getTotalCost());
-                combineVo.setPathCost(paths.get(i).getPathCost());
-                Set<String> sharedPathSet = new HashSet();
-                int sharedCost = 0;
-                for (SharedPath sharedPath : sharedSubPaths.get(i).values()) {
-                    if (!sharedPathSet.contains(sharedPath.getPathStr())){
-                        sharedPathSet.add(sharedPath.getPathStr());
-                        sharedCost += sharedPath.getPathCost();
-                    }
-                }
-                // construct format path and rebuild sharedPath
-                combineVo.setSharedPathCost(sharedCost);
-                combineVo.setCreatedBy("findShortestCombine");
-                saveData.add(combineVo);
-            }
-            combineNumber++;
-        }
-        return saveData;
-    }
-
-
-
-    /**
-     * order combines by total cost and keep the first N combines
-     * @param combines
-     * @param maxCombine
-     * @return
-     */
-    private List<Combine> getFirstNCombine(List<Combine> combines, int maxCombine) {
-        PriorityQueue<Combine> queue = new PriorityQueue<>((c1,c2)->{
-            int t1 = c1.getTotalCost();
-            int t2 = c2.getTotalCost();
-            return t1==t2?0:(t1>t2?1:-1);
-        });
-        for (Combine combine : combines) {
-            queue.offer(combine);
-        }
-        List<Combine> rst = new ArrayList<>();
-        int count=0;
-        while (!queue.isEmpty()&&count<maxCombine){
-            Combine poll = queue.poll();
-            if (poll!=null){
-                rst.add(poll);
-            }
-            count++;
-        }
-        return rst;
-    }
-
-
-    /**
-     * build combine from paths data
-     * @param targetListMap
-     * @return
-     */
-    private List<Combine> buildCombines(Map<Integer, List<Path>> targetListMap) {
-        // build combination
-        List<Path>[] array = (List<Path>[]) targetListMap.values().toArray(new List[0]);
-        List<Combine> combineList = new ArrayList<>();
-        buildCombines(array,0,new Combine(),combineList);
-        // deal sub path and cost for each combine
-        for (Combine combine : combineList) {
-            PathHelper.findSharedSubPaths(combine);
-            PathHelper.calcCost4Combine(combine);
-        }
-        return combineList;
-    }
-
-
-    /**
-     * recursively build combine from paths data
-     * @param pathListArr
-     * @param index
-     * @param curCombine
-     * @param combineList
-     */
-    private void buildCombines(List<Path>[] pathListArr, int index, Combine curCombine, List<Combine> combineList) {
-        List<Path> list = pathListArr[index];
-        for (int i = 0; i < list.size(); i++) {
-            Combine newCombine = curCombine.clone();
-            newCombine.setBatchId(list.get(i).getBatchId());
-            //newCombine.setTotalCost(newCombine.getTotalCost()+list.get(i).getPathCost());
-            newCombine.getPaths().addLast(list.get(i));
-            // the last level
-            if (index==pathListArr.length-1){
-                combineList.add(newCombine);
-            }else {
-                buildCombines(pathListArr,index+1, newCombine,combineList);
-            }
-        }
-    }
-
-    private Map<Integer, List<Path>> getTargetListMap(String sourceName, String targetNames, int maxCombine, boolean useLog){
-        Map<Integer, List<Path>> targetListMap = new HashMap<>();
-        try (java.sql.Connection conn = dataSource.getConnection()) {
-            CallableStatement cs = conn.prepareCall("{call findShortestPaths(?, ?, ?, ?, ?)}");
-            cs.setString(1, sourceName);
-            cs.setString(2, targetNames);
-            cs.setInt(3, maxCombine);
-            cs.setBoolean(4, useLog);
-            cs.setBoolean(5, true);
-            boolean hasResults = cs.execute();
-            for (int i = 0; i < 3; i++) {
-                hasResults=cs.getMoreResults();
-            }
-            if (hasResults){
-                // get batchId
-                ResultSet rs = cs.getResultSet();
-                rs.next();
-                int batchId = rs.getInt("batchId");
-                // get paths
-                cs.getMoreResults();
-                rs = cs.getResultSet();
-                while (rs.next()) {
-                    int targetId = rs.getInt("current_node_id");
-                    int cost = rs.getInt("comulative_cost");
-                    String nodeIds = rs.getString("node_ids").substring(1);
-                    String nodeNames = rs.getString("node_names");
-                    String nodeCosts = rs.getString("node_costs");
-                    String edgeCosts = rs.getString("edge_costs");
-                    List<Path> list = targetListMap.get(targetId);
-                    if (list==null){
-                        list=new ArrayList<>();
-                        targetListMap.put(targetId,list);
-                    }
-                    list.add(new Path(batchId,nodeIds.split(","),nodeNames.split("->"),cost,nodeCosts.split(","),edgeCosts.split(",")));
-                }
-            }
-            cs.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        }
-        return targetListMap;
-    }
-
     @Override
     public List<PathVo> shortestPathAlgorithmBasedOnDB(String sourceName, String targetNames, int quantity, boolean useLog){
         return pathDao.findShortestPaths(sourceName, targetNames, quantity, useLog);
-    }
-    public List<PathVo> shortestPathAlgorithmBasedOnDB2(String sourceName, String targetNames, int quantity, boolean useLog){
-        List<PathVo> paths = new ArrayList<>();
-        try (java.sql.Connection conn = dataSource.getConnection()) {
-            CallableStatement cs = conn.prepareCall("{call findShortestPaths(?, ?, ?, ?, ?)}");
-            cs.setString(1, sourceName);
-            cs.setString(2, targetNames);
-            cs.setInt(3, quantity);
-            cs.setBoolean(4, useLog);
-            cs.setBoolean(5, true);
-            if (cs.execute()){
-                // get paths
-                ResultSet rs = cs.getResultSet();
-                while (rs.next()) {
-                    PathVo pathVo = new PathVo();
-                    pathVo.setBatchId(rs.getInt("batchId"));
-                    pathVo.setSource(rs.getString("source"));
-                    pathVo.setTarget(rs.getString("Destination"));
-                    pathVo.setPath(rs.getString("Path"));
-                    pathVo.setTotalNode(rs.getInt("NodeCount"));
-                    pathVo.setTotalCost(rs.getInt("TotalCost"));
-                    paths.add(pathVo);
-                }
-            }
-            cs.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        }
-        return paths;
     }
 
 }

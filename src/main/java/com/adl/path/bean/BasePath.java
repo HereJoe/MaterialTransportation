@@ -5,10 +5,13 @@ import lombok.Data;
 @Data
 public class BasePath {
     private String pathStr;
+    private String formatPathStr;
+    private String sharedStr;
     private int pathCost;
-    private String[] nodeIds;
+    private int[] nodeIds;
+    private int[] edgeIds;
 
-    public BasePath(String pathStr, int pathCost, String[] nodeIds) {
+    public BasePath(String pathStr, int pathCost, int[] nodeIds) {
         this.pathStr = pathStr;
         this.pathCost = pathCost;
         this.nodeIds = nodeIds;

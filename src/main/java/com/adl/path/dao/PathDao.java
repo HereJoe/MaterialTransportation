@@ -2,7 +2,6 @@ package com.adl.path.dao;
 
 
 import com.adl.path.bean.CombineDto;
-import com.adl.path.bean.Path;
 import com.adl.path.bean.PathDto;
 import com.adl.path.bean.PathVo;
 

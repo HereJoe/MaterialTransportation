@@ -10,7 +10,6 @@ public class Combine implements Cloneable {
     private int batchId;
     private int totalCost;
     private LinkedList<Path> paths = new LinkedList<>();
-    private LinkedList<Map<Path,SharedPath>> sharedSubPaths;
 
     @Override
     public Combine clone() {
