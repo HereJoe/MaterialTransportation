@@ -11,12 +11,4 @@ public class BasePath {
     private int[] nodeIds;
     private int[] edgeIds;
 
-    public BasePath(String pathStr, int pathCost, int[] nodeIds) {
-        this.pathStr = pathStr;
-        this.pathCost = pathCost;
-        this.nodeIds = nodeIds;
-    }
-
-    public BasePath() {
-    }
 }

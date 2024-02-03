@@ -6,7 +6,6 @@ import com.adl.path.bean.PathDto;
 import com.adl.path.bean.PathVo;
 
 import java.util.List;
-import java.util.Map;
 
 public interface PathDao {
     List<PathVo> findShortestPaths(String sourceName, String targetNames, int combineCount, boolean useLog);

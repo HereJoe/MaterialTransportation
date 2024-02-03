@@ -1,5 +1,7 @@
 package com.adl.path.controller;
 
+import com.adl.path.bean.CombineVo;
+import com.adl.path.bean.PathDto;
 import com.adl.path.bean.PathVo;
 import com.adl.path.bean.Resp;
 import com.adl.path.service.PathService;
@@ -26,7 +28,7 @@ public class PathController {
     @GetMapping("/findShortestCombines/{sourceName}/{targetNames}/{quantity}")
     public Resp findShortestCombine(@PathVariable @NotEmpty String sourceName, @PathVariable @NotEmpty String targetNames, @PathVariable @Min(value = 1) int quantity){
         try {
-            List combines = pathService.findShortestCombine(sourceName,targetNames, quantity);
+            List<List<CombineVo>> combines = pathService.findShortestCombine(sourceName,targetNames, quantity);
             if (combines==null){
                 return Resp.fail("no combine among source and targets");
             }
@@ -54,10 +56,8 @@ public class PathController {
         try {
             if (dbAlgorithm){
                 List<PathVo> paths = pathService.shortestPathAlgorithmBasedOnDB(sourceName,targetNames, quantity, useLog);
-                System.out.println(paths.size());
-                System.out.println(paths.get(0));
                 if (paths!=null&&paths.size()>0){
-                    pathGroups = new ArrayList<>(paths.stream().collect(Collectors.groupingBy(n->n.getTarget())).values());
+                    pathGroups = new ArrayList<>(paths.stream().collect(Collectors.groupingBy(PathDto::getTarget)).values());
                 }
             }else {
                 pathGroups = pathService.findShortestPaths(sourceName,targetNames, quantity);

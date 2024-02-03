@@ -37,13 +37,13 @@
 
 > [http://47.106.108.49/shortestPath](http://47.106.108.49/shortestPath/)
 > 
-> ![](src\main\resources\static\images\algorithm%20page.png)
+> ![](./src/main/resources/static/images/algorithm_page.png)
 
 **Management page**
 
 > http://47.106.108.49/shortestPath/swagger-ui.html
 > 
-> ![](src\main\resources\static\images\management%20page.png)
+> ![](./src/main/resources/static/images/management_page.png)
 
 #### 4. Algorithm decision
 
@@ -80,7 +80,7 @@
 
 ### 5. Software Architecture
 
-> ![](src\main\resources\static\images\software%20architecture.png)
+> ![](./src/main/resources/static/images/software_architecture.png)
 
 > We adopted an Model-View-Controller (MVC) project architecture.
 > 

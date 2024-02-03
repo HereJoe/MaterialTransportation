@@ -3,7 +3,6 @@ package com.adl.path.bean;
 import lombok.Data;
 
 import java.util.LinkedList;
-import java.util.Map;
 
 @Data
 public class Combine implements Cloneable {
