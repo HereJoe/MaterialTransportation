@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.adl.genius.mapper.QAMapper">
+
+    <resultMap id="BaseResultMap" type="com.adl.genius.entity.po.QA">
+            <id property="id" column="id" jdbcType="INTEGER"/>
+            <result property="dialogId" column="dialog_id" jdbcType="INTEGER"/>
+            <result property="userId" column="user_id" jdbcType="INTEGER"/>
+            <result property="userInput" column="user_input" jdbcType="VARCHAR"/>
+            <result property="modelOutput" column="model_output" jdbcType="VARCHAR"/>
+            <result property="createTime" column="create_time" jdbcType="TIMESTAMP"/>
+    </resultMap>
+</mapper>
